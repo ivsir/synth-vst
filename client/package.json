@@ -1,0 +1,22 @@
+{
+  "name": "client",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.ts",
+  "scripts": {
+    "dev": "vite --host",
+    "start": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "tone": "^15.0.4",
+    "webmidi": "^3.1.9"
+  },
+  "devDependencies": {
+    "sass": "^1.63.6"
+  }
+}
