@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.7.2",
     "tone": "^15.0.4",
     "webmidi": "^3.1.9"
   },

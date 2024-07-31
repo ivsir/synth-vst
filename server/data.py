@@ -75,6 +75,7 @@ dataloader = DataLoader(dataset, batch_size=32, shuffle=True)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+# num_epochs = 100
 num_epochs = 100
 for epoch in range(num_epochs):
     for batch_x, batch_y in dataloader:
@@ -94,6 +95,6 @@ def predict_chord(midi_keys):
     return chord_name[0]
 
 # Example usage
-user_midi_keys = [60, 62, 63, 67, 70,74]  # Example MIDI keys played by the user
+user_midi_keys = [67, 71, 60, 64, 74]  # Example MIDI keys played by the user
 predicted_chord = predict_chord(user_midi_keys)
 print(f'The played chord is: {predicted_chord}')
