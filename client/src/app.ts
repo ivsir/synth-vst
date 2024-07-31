@@ -108,9 +108,12 @@ function logMatchingData(jsonData: MusicData, targetNote: string) {
 
 // <---------------------------------------------------->
 
+let playChord = []
+
 function playNote(note: string) {
   const now = Tone.now();
   logMatchingData(musicData as MusicData, note);
+  
   synth.triggerAttack(note, now);
 }
 
