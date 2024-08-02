@@ -1,6 +1,5 @@
 import * as Tone from "tone";
 import { WebMidi } from "webmidi";
-import * as musicData from "../chords/chords.json";
 
 import "./sass/style.scss";
 
@@ -19,6 +18,84 @@ if (root) {
 // make and start a 440hz sine tone
 const synth = new Tone.PolySynth().toDestination();
 
+// <---------------------------- MIDI ACCESS ------------------------>
+WebMidi.enable({
+  callback: (err: any) => {
+    if (err) {
+      console.error("WebMidi could not be enabled.", err);
+    } else {
+      console.log("WebMidi enabled!");
+
+      const midiInputSelect = document.getElementById(
+        "midiInputSelect"
+      ) as HTMLSelectElement;
+      if (midiInputSelect) {
+        // Populate the select field with available MIDI input devices
+        WebMidi.inputs.forEach((input) => {
+          const option = document.createElement("option");
+          option.value = input.id;
+          option.text = input.name;
+          midiInputSelect.appendChild(option);
+        });
+
+        // Add event listener for MIDI input selection
+        midiInputSelect.addEventListener("change", (event) => {
+          const selectedId = (event.target as HTMLSelectElement).value;
+          const selectedInput = WebMidi.getInputById(selectedId);
+          if (selectedInput) {
+            setupMIDIInput(selectedInput);
+          }
+        });
+      }
+    }
+  },
+});
+
+// Function to setup MIDI input event listeners
+function setupMIDIInput(input: any) {
+  // Remove event listeners from previous input if any
+  WebMidi.inputs.forEach((input) => {
+    input.removeListener("noteon");
+    input.removeListener("noteoff");
+  });
+
+  // Add event listeners for the selected input
+  input.addListener("noteon", "all", (e: any) => {
+    console.log("e.note", e.note);
+    console.log(
+      `Received 'noteon' message (${e.note.name}${e.note._accidental || ""}${
+        e.note.octave
+      }).`
+    );
+
+    // Construct the note string with or without accidental
+    const noteString = `${e.note.name}${e.note._accidental || ""}${
+      e.note.octave
+    }`;
+    const element = document.querySelector(
+      `[data-note="${noteString}"]`
+    ) as HTMLElement;
+    playNoteFromMidi(e.note.number, element);
+  });
+
+  input.addListener("noteoff", "all", (e: any) => {
+    console.log(
+      `Received 'noteoff' message (${e.note.name}${e.note._accidental || ""}${
+        e.note.octave
+      }).`
+    );
+
+    // Construct the note string with or without accidental
+    const noteString = `${e.note.name}${e.note._accidental || ""}${
+      e.note.octave
+    }`;
+    const element = document.querySelector(
+      `[data-note="${noteString}"]`
+    ) as HTMLElement;
+    stopNoteFromMidi(e.note.number, element);
+  });
+}
+
 // <---------------------------------------------------->
 
 const piano = document.getElementById("piano");
@@ -29,7 +106,7 @@ if (piano) {
       const noteMidi = note;
       const keyElement = document.createElement("div");
       keyElement.classList.add("key");
-      keyElement.classList.add(noteName.includes("b") ? "black" : "white");
+      keyElement.classList.add(noteName.includes("#") ? "black" : "white");
       keyElement.dataset.note = noteName; // Store note name for reference
       piano.appendChild(keyElement);
 
@@ -43,107 +120,34 @@ if (piano) {
 
 // <---------------------------------------------------->
 
-type ChordData = {
-  name: string;
-  notes: string[];
-  intervals: string[];
-  midiKeys: number[];
-};
-type MusicData = {
-  [key: string]: {
-    [chord: string]: ChordData;
-  };
-};
 interface MidiEvent {
+  note: string;
   midi: number; // MIDI number
   timestamp: number; // Time at which the event occurred
 }
 
-function removeNumbers(note: string): string {
-  return note.replace(/[0-9]/g, "");
-}
-
-// function logMatchingData(jsonData: MusicData, targetNote: string) {
-//   const normalizedTargetNote = removeNumbers(targetNote);
-//   // Normalize the keys in jsonData to ignore numbers as well
-//   const normalizedKeys = Object.keys(jsonData).map((key) => removeNumbers(key));
-
-//   // Find the index of the normalized target note in the normalized keys
-//   const targetIndex = normalizedKeys.indexOf(normalizedTargetNote);
-
-//   // Get the container to display the chords
-//   const container = document.getElementById("chordContainer");
-//   if (!container) return;
-
-//   // Clear previous contents
-//   container.innerHTML = "";
-
-//   if (targetIndex !== -1) {
-//     const originalKey = Object.keys(jsonData)[targetIndex];
-//     const chords = jsonData[originalKey];
-
-//     // Create a header for the key
-//     const keyHeader = document.createElement("h2");
-//     keyHeader.textContent = `Key: ${normalizedTargetNote}`;
-//     container.appendChild(keyHeader);
-
-//     // Create a list of chords
-//     const chordList = document.createElement("ul");
-//     for (const chordName in chords) {
-//       const chord = chords[chordName];
-
-//       // Create a list item for each chord
-//       const chordItem = document.createElement("li");
-//       chordItem.textContent = `Chord Name: ${normalizedTargetNote}-${chordName}, Notes: ${chord.notes.join(
-//         ", "
-//       )}, Intervals: ${chord.intervals.join(
-//         ", "
-//       )}, MIDI Keys: ${chord.midiKeys.join(", ")}`;
-//       chordList.appendChild(chordItem);
-//     }
-
-//     container.appendChild(chordList);
-//     // console.log(`key: ${normalizedTargetNote}, chords:`, chords);
-//   } else {
-//     const noMatchMessage = document.createElement("p");
-//     noMatchMessage.textContent = `No matching key found for ${normalizedTargetNote}`;
-//     // console.log(`No matching key found for ${normalizedTargetNote}`);
-//   }
-// }
-
-// <---------------------------------------------------->
-
 let playChord: MidiEvent[] = []; // Array to store MIDI numbers with timestamps
 const TIME_WINDOW = 0.18;
 
-// function addNoteToPlayChord(midi: number) {
-//   const now = Tone.now(); // Current time in seconds
-//   playChord.push({ midi, timestamp: now });
-
-//   // Remove events older than TIME_WINDOW seconds
-//   playChord = playChord.filter((event) => now - event.timestamp <= TIME_WINDOW);
-//   console.log(playChord.map((event) => event.midi));
-
-// }
-
-async function addNoteToPlayChord(midi: number) {
+async function addNoteToPlayChord(note: string, midi: number) {
   const now = Tone.now(); // Current time in seconds
 
   // Add the new note to the playChord array
-  playChord.push({ midi, timestamp: now });
-
+  playChord.push({ note, midi, timestamp: now });
+  console.log(playChord);
   // Remove events older than TIME_WINDOW seconds
   playChord = playChord.filter((event) => now - event.timestamp <= TIME_WINDOW);
   // Send the most recent playChord to the backend
   try {
     const response = await axios.post("http://localhost:5001/predict_chord", {
-      midi_keys: playChord.map((event) => event.midi),
+      // midi_keys: playChord.map((event) => event.midi),
+      midi_keys: playChord.map((event) => event.note),
     });
     // Get the container to display the chords
     const container = document.getElementById("chordContainer");
     if (!container) return;
 
-    container.innerHTML = ""
+    container.innerHTML = "";
     // Display the predicted chord name on the frontend
     const predictedChord = response.data.chord_name;
 
@@ -151,8 +155,6 @@ async function addNoteToPlayChord(midi: number) {
     const keyHeader = document.createElement("li");
     keyHeader.textContent = `Chord: ${predictedChord}`;
     container.appendChild(keyHeader);
-
-    console.log(`Predicted chord: ${predictedChord}`);
     // You can update your UI with the predicted chord here
   } catch (error) {
     console.error("Error predicting chord:", error);
@@ -161,10 +163,8 @@ async function addNoteToPlayChord(midi: number) {
 
 function playNote(note: string, midi: number) {
   const now = Tone.now();
-  // logMatchingData(musicData as MusicData, note);
-
   // Add the note to the playChord array
-  addNoteToPlayChord(midi);
+  addNoteToPlayChord(note, midi);
 
   synth.triggerAttack(note, now);
 }
@@ -172,6 +172,22 @@ function playNote(note: string, midi: number) {
 function stopNote(note: string, midi: number) {
   const now = Tone.now();
   synth.triggerRelease(note, now);
+}
+
+function playNoteFromMidi(midi: number, element: HTMLElement) {
+  const note = midiMapper(midi);
+  element.classList.add("active");
+  if (note) {
+    playNote(note, midi);
+  }
+}
+
+function stopNoteFromMidi(midi: number, element: HTMLElement) {
+  const note = midiMapper(midi);
+  element.classList.remove("active");
+  if (note) {
+    stopNote(note, midi);
+  }
 }
 
 // <---------------------------------------------------->
@@ -250,10 +266,4 @@ function keyboardEvents(element: HTMLElement, note: string) {
 
   document.addEventListener("keydown", keydownHandler);
   document.addEventListener("keyup", keyupHandler);
-
-  // Clean up event listeners on component unmount or similar
-  return () => {
-    document.removeEventListener("keydown", keydownHandler);
-    document.removeEventListener("keyup", keyupHandler);
-  };
 }
